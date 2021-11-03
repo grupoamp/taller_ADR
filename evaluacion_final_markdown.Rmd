@@ -1,0 +1,406 @@
+---
+title: "Evaluación final"
+output:
+  html_document:
+    toc: true
+    toc_depht: 3
+    toc_float: true
+    theme: flatly
+    lang: es-ES
+    df_print: paged
+  pdf_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{css echo = FALSE}
+# Cambiar color del título y subtítulos
+
+.columns {display:flex;}
+h1 {color: #E94B4F;}
+h2 {color: #240406;}
+```
+
+```{css echo = FALSE}
+.list-group-item.active, .list-group-item.active:focus, .list-group-item.active:hover {
+    z-index: 2;
+    color: #fff;
+    background-color: #E94B4F;
+    border-color: #337ab7;
+}
+```
+
+```{r, echo=FALSE}
+htmltools::img(src = knitr::image_uri("logo.png"), 
+               alt = 'logo', 
+               style = 'position:absolute;
+                        top:0; 
+                        right:0;
+                        padding:10px;',
+               width  = "180px",
+               heigth = "180px")
+```
+
+## Pasos previos
+
+#### Cargar paquetes
+
+```{r}
+library(pacman)
+
+p_load(tidyverse,  # Manipulación y visualización de datos
+       openxlsx,   # Importar archivos excel
+       patchwork,  # Manipulación de gráficos 
+       psych,      # Estadisticos descriptivos
+       skimr,      # Estadisticos descriptivos
+       car,        # Análisis de homocedasticidad
+       corrr,      # Análisis de correlación
+       effectsize) # Tamaño del efecto
+```
+
+## Actividad 1
+
+#### Importa la base de datos `data3_clean` y guárdala en un objeto
+
+```{r}
+burnout_df <- readxl::read_excel("data3_clean.xlsx")
+```
+
+```{r echo = FALSE}
+head(burnout_df)
+```
+
+## Actividad 2
+
+#### Selecciona todas las variables sociodemográficas. Luego filtra a los participantes de la escuela "Vocación salud", que sean mujeres y mayores de edad. Finalmente, guárdalo en un objeto llamado "demograficos" y expórtalo en un archivo excel con el mismo nombre
+
+```{r eval = FALSE}
+demograficos <- burnout_df %>% 
+  select(sexo:edad) %>% 
+  filter(escuela == "Vocación salud",
+         sexo    == "Mujer",
+         edad    >=  18)
+```
+
+```{r echo = FALSE}
+burnout_df %>% 
+  select(sexo:edad) %>% 
+  filter(escuela == "Vocación salud",
+         sexo    == "Mujer",
+         edad    >=  18) %>% 
+  head(6)
+```
+
+```{r eval=FALSE}
+write.xlsx(demograficos, "demograficos.xlsx")
+```
+
+## Actividad 3
+
+#### Halla el puntaje total de la escala de ***burnout*** y colócale el nombre "bur_total", luego halla el puntaje total de la escala de ***autoeficacia académica*** y colócale el nombre "ase_total". Finalmente, categoriza estos puntajes totales y usa los nombres "bur_cat" y "ase_cat" para las variables categóricas creadas.
+
+##### Crear variables totales para burnout y autoeficacia académica
+
+```{r}
+burnout_df <- burnout_df %>% 
+              rowwise() %>% 
+              mutate(bur_total = sum(c_across(bur1:bur24))) %>% 
+              ungroup()
+                     
+```
+
+```{r}
+burnout_df <- burnout_df %>% 
+              rowwise() %>% 
+              mutate(ase_total = sum(c_across(ase1:ase31))) %>% 
+              ungroup()
+```
+
+##### Categorizar variables de burnout y autoeficacia académica
+
+```{r}
+burnout_df <- burnout_df %>% 
+  mutate(
+    bur_cat = case_when(bur_total <= 48 ~ "leve",
+                        bur_total <  97 ~ "moderado",
+                        bur_total >= 97 ~ "severo") 
+    )
+```
+
+```{r}
+burnout_df <- burnout_df %>% 
+  mutate(
+    ase_cat = case_when(ase_total <  62 ~ "baja",
+                        ase_total <= 93 ~ "moderada",
+                        ase_total >= 94 ~ "alta")
+  )
+```
+
+```{r echo = FALSE}
+burnout_df %>% 
+  select(bur_total, bur_cat, ase_total, ase_cat) %>% 
+  head()
+```
+
+## Actividad 4
+
+#### Halla la frecuencia en porcentajes de burnout (leve, moderado, severo) y de autoeficacia académica (baja, moderada y alta) en mujeres que viven solas de la escuela de vocación de salud. (Las frecuencias para cada variable deben tener códigos separados).
+
+```{r eval=FALSE}
+burnout_df %>% 
+  filter(sexo == "Mujer",
+         convive == "Solo",
+         escuela == "Vocación salud") %>% 
+  count(bur_cat) %>% 
+  mutate(porcentaje = n/sum(n)*100)
+```
+
+```{r eval=FALSE}
+burnout_df %>% 
+  filter(sexo == "Mujer",
+         convive == "Solo",
+         escuela == "Vocación salud") %>% 
+  count(ase_cat) %>% 
+  mutate(porcentaje = n/sum(n)*100)
+```
+
+## Actividad 5
+
+#### Realiza un resumen descriptivo de ***burnout*** y ***autoeficacia académica*** según las variable ***sexo*** y ***convive***
+
+```{r}
+# Según la variable sexo
+burnout_df %>% 
+  select(bur_total, ase_total, sexo) %>%
+  describeBy(group = .$sexo)
+```
+
+```{r}
+# Según la variable convive
+burnout_df %>% 
+  select(bur_total, ase_total, convive) %>%
+  describeBy(group = .$convive)
+```
+
+## Actividad 6
+
+#### Visualiza el comportamiento (distribución de puntajes) de las variables ***burnout*** y ***autoeficacia académica***, utiliza colores a tu elección, junta ambos gráficos y exportalos con el nombre "puntajes_variables". Asimismo coloca etiquetas con los nombres que consideres adecuados y que describan el gráfico (título, subtítulo, X y Y)
+
+```{r}
+# Elaborar histograma de la variable burnout
+p1 <- burnout_df %>%
+  ggplot(aes(x = bur_total)) +
+  geom_histogram(binwidth = 10,
+                 color = "#121317",
+                 fill  = "#506AD4") +
+  labs(
+    title = "Distribución de puntajes de burnout",
+    subtitle = "Examen-Taller AMP",
+    x = "Burnout",
+    y = "Frecuencia"
+  ) +
+  theme_bw()
+```
+
+```{r echo=FALSE}
+p1
+```
+
+```{r}
+# Elaborar histograma de la variable autoeficacia academica
+p2 <- burnout_df %>%
+  ggplot(aes(x = ase_total)) +
+  geom_histogram(binwidth = 10,
+                 color = "#121317",
+                 fill  = "#F2CC39") +
+  labs(
+    title = "Distribución de puntajes de autoeficacia académica",
+    subtitle = "Examen-Taller AMP",
+    x = "Autoeficacia académica",
+    y = "Frecuencia"
+  ) +
+  theme_bw()
+```
+
+```{r echo=FALSE}
+p2
+```
+
+```{r}
+# Unir gráficos 
+p3 <- p1 + p2
+```
+
+```{r echo=FALSE, fig.width = 8, out.width = "100%"}
+p3
+```
+
+```{r eval=FALSE}
+# Exportar gráfico 
+ggsave(filename = "puntajes_variables.jpg",
+       plot = p3,
+       height = 4,
+       width = 8,
+       scale = 1.5,
+       dpi = 300)
+```
+
+## Actividad 7
+
+#### Realiza un gráfico de barras de la variable bur_cat que brinde la información mediante porcentajes. Así mismo utiliza colores e incluye las etiquetas, posteriormente expórtalo con el nombre "barras_variables"
+
+```{r}
+p4 <- burnout_df %>% 
+  count(bur_cat) %>% 
+  mutate(porcentaje = n/sum(n)*100) %>% 
+  ggplot(aes(x = porcentaje,
+             y = bur_cat, 
+             fill = bur_cat)) +
+  geom_col() +
+  scale_fill_manual("Niveles", 
+                    values = c("severo" = "#D95F69",
+                               "moderado" = "#F2E18D",
+                               "leve" = "#BFB99B")) +
+  labs(title = "Categorías de la variable burnout",
+       subtitle = "Examen-Taller AMP",
+       x = NULL,
+       y = NULL) +
+  theme_minimal() 
+```
+
+```{r echo=FALSE}
+p4
+```
+```{r eval = FALSE}
+# Exportar gráfico 
+ggsave(filename = "barras_variables.jpg",
+       plot = p4,
+       height = 4,
+       width = 8,
+       scale = 1.5,
+       dpi = 300)
+```
+
+## Actividad 8
+
+#### Evalúa el supuesto de normalidad para las variables ***burnout*** y ***autoeficacia académica*** según el ***sexo***; y visualiza la normalidad en un histograma simple. Analiza el supuesto de homocedasticidad y brinda una interpretación para ambos supuestos.
+
+##### ***Evaluar el supuesto de normalidad (Shapiro-Wilk test)***
+
+```{r}
+# Burnout y sexo
+tapply(burnout_df$bur_total,
+       burnout_df$sexo,
+       shapiro.test)
+```
+
+```{r}
+# Autoeficacia académica y sexo
+tapply(burnout_df$ase_total,
+       burnout_df$sexo,
+       shapiro.test)
+```
+
+> ^Ambas variables no cumplen el supuesto de normalidad^
+
+##### ***Evaluar el supuesto de homocedasticidad (Levene test)***
+
+```{r}
+# Burnout y sexo
+leveneTest(burnout_df$bur_total ~ factor(burnout_df$sexo))
+```
+
+```{r}
+# Autoeficacia académica y sexo
+leveneTest(burnout_df$ase_total ~ factor(burnout_df$sexo))
+```
+
+> ^Ambas variables cumplen el supuesto de homocedasticidad^
+
+## Actividad 9
+
+#### A partir de lo hallado en los supuestos realiza la comparación de grupos para cada variable (***burnout*** y ***autoeficacia académica***) según la variable ***sexo***. Asimismo, halla el tamaño del efecto y brinda una interpretación de los resultados.
+
+##### ***Evaluar si existen diferencias entre los grupos***
+
+```{r}
+# Burnout y sexo
+wilcox.test(burnout_df$bur_total ~ burnout_df$sexo)
+```
+
+```{r}
+# Autoeficacia académica y sexo
+wilcox.test(burnout_df$ase_total ~ burnout_df$sexo)
+```
+
+> ^En ambas variables no se observan diferencias significativas según sexo.^
+
+##### ***Analizar el tamaño del efecto***
+
+```{r}
+# Burnout y sexo
+rank_biserial("bur_total", "sexo", data = burnout_df)
+```
+
+> ^El tamaño del efecto calculado puede categorizarse como pequeño^
+
+```{r}
+# Autoeficacia académica y sexo
+rank_biserial("ase_total", "sexo", data = burnout_df)
+```
+
+> ~El tamaño del efecto calculado puede categorizarse como nulo~
+
+## Actividad 10
+
+#### Analiza la linealidad de las variables ***burnout*** y ***autoeficacia académica***, evalúa el supuesto de normalidad, visualízalo gráficamente mediante un histograma sencillo, realiza el análisis de correlación con el método que corresponda y brinda una explicación de los resultados.
+
+##### ***Analizar la linealidad (forma gráfica)***
+
+```{r message = FALSE}
+burnout_df %>% 
+  ggplot(aes(x = bur_total,
+             y = ase_total)) +
+  geom_point() +
+  geom_smooth(method = lm) 
+```
+
+> ^Las variables presentan una relación lineal negativa^
+
+##### ***Evaluar el supuesto de normalidad (Shapiro-Wilk test)***
+
+```{r}
+shapiro.test(burnout_df$bur_total)
+shapiro.test(burnout_df$ase_total)
+```
+
+##### ***Evaluar el supuesto de normalidad (histograma)***
+
+```{r}
+# Burnout
+burnout_df %>%
+  ggplot(aes(x = bur_total)) +
+  geom_histogram(binwidth = 10) +
+  theme_bw()
+```
+
+```{r}
+# Autoeficacia académica
+burnout_df %>%
+  ggplot(aes(x = ase_total)) +
+  geom_histogram(binwidth = 10) +
+  theme_bw()
+```
+
+> ^Las variables no cumplen con el supuesto de normalidad, por lo que se utilizará una prueba no paramétrica (Spearman)^
+
+##### ***Análisis de correlación (Spearman)***
+
+```{r message = FALSE}
+burnout_df %>% 
+  select(bur_total, ase_total) %>%
+  correlate(method = "spearman")
+```
+
+> ^Las variables presentan una fuerte correlación negativa es decir, a mayor puntaje burnout menor de autoeficacia académica^
